@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "trackmania"
+version = "0.1.0"
+description = ""
+authors = ["robertbastien <bastien.robert91@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.12"
+click = ">=8.1,<8.2"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.4.9"
+pre-commit = "^3.7.1"
+pytest = "^8.2.2"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+trackmania = "trackmania.cli:cli"
