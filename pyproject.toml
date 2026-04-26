@@ -7,8 +7,12 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.11,<3.12"
 click = ">=8.1,<8.2"
+loguru = "^0.7.3"
+pyyaml = "^6.0.3"
+pillow = "^12.2.0"
+numpy = "^2.4.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.4.9"
