@@ -29,5 +29,8 @@ class SimpleImageDataset(Dataset):
             img = self.transform(img)
 
 
-        return img, str(path)
+        return {
+            "image": img, 
+            "path": str(path)
+            }
         

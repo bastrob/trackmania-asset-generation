@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import torch
+import torch.nn as nn
 from loguru import logger
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from ..dataset import Compose, SimpleImageDataset
@@ -10,6 +13,7 @@ from ..dataset.transform import (
     to_channel_first,
     to_tensor,
 )
+from ..model import DummyModel
 
 DATA_PATTERNS = ["*.jpg", "*.png", "*.jpeg"]
 
@@ -29,6 +33,12 @@ class BaseTask:
             to_channel_first,
             to_tensor
         ])
+
+        self.device: torch.device
+        self.model: nn.Module
+        self.optimizer: Optimizer
+        self.criterion: nn.Module
+
     
     def load_data(self):
         """
@@ -57,7 +67,17 @@ class BaseTask:
         """
         Load model from configuration.
         """
-        logger.info("[BaseTask] Loading model (placeholder)")
+        logger.info("[BaseTask] Loading model...")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        self.model = DummyModel().to(self.device)
+        
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(),
+            lr=float(self.config.get("learning_rate", 1e-4))
+        )
+
+        self.criterion = nn.MSELoss()
     
     def build_dataset(self):
         """
@@ -90,7 +110,31 @@ class BaseTask:
         """
         Train a model.
         """
-        logger.info("[BaseTask] Training model (placeholder)")
+        logger.info("[BaseTask] Training model...")
+        self.model.train()
+        epochs = self.config.get("epochs", 5)
+        for epoch in range(epochs):
+            total_loss = 0
+
+            for batch in self.dataloader:
+                images = batch["image"].to(self.device)
+                
+                # forward
+                outputs = self.model(images)
+
+                # fake target (autoencoder-style training)
+                loss = self.criterion(outputs, images)
+
+                # backward
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                total_loss += loss.item()
+            
+            logger.info(f"Epoch {epoch}: loss = {total_loss:.4f}")
+                
+
 
     def run(self):
         logger.info("[BaseTask] running...")
