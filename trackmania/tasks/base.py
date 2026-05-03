@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from loguru import logger
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
@@ -13,7 +14,9 @@ from ..dataset.transform import (
     to_channel_first,
     to_tensor,
 )
-from ..model import DummyModel
+from ..diffusion.utils import reconstruct
+from ..model import DiffusionModel
+from ..viz.image import show_triplet
 
 DATA_PATTERNS = ["*.jpg", "*.png", "*.jpeg"]
 
@@ -70,11 +73,15 @@ class BaseTask:
         logger.info("[BaseTask] Loading model...")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.model = DummyModel().to(self.device)
+        self.model = DiffusionModel().to(self.device)
         
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
             lr=float(self.config.get("learning_rate", 1e-4))
+        )
+
+        self.scheduler = DDPMScheduler(
+            num_train_timesteps=1000, beta_start=0.001, beta_end=0.02
         )
 
         self.criterion = nn.MSELoss()
@@ -111,6 +118,7 @@ class BaseTask:
         Train a model.
         """
         logger.info("[BaseTask] Training model...")
+
         self.model.train()
         epochs = self.config.get("epochs", 5)
         for epoch in range(epochs):
@@ -119,20 +127,44 @@ class BaseTask:
             for batch in self.dataloader:
                 images = batch["image"].to(self.device)
                 
-                # forward
-                outputs = self.model(images)
+                # Sample noise to add to the image
+                noise = torch.randn_like(images)
+
+                # Sample a random timestep for each image
+                timesteps = torch.randint(
+                    0,
+                    self.scheduler.config.num_train_timesteps,
+                    (images.shape[0],),
+                    device=self.device,
+                ).long()
+
+                # Add noise to the base images according
+                # to the noise magnitude at each timestep
+                noisy_images = self.scheduler.add_noise(images, noise, timesteps)
+
+                # Get the model prediction for the noise
+                noise_pred = self.model(noisy_images, timesteps)
 
                 # fake target (autoencoder-style training)
-                loss = self.criterion(outputs, images)
+                loss = self.criterion(noise_pred, noise)
 
                 # backward
-                self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+                self.optimizer.zero_grad()
 
                 total_loss += loss.item()
+
+                # viz part
+                recon = reconstruct(noisy_images, noise_pred)
+                show_triplet(
+                    images[0],
+                    noisy_images[0],
+                    recon[0]
+                )
             
             logger.info(f"Epoch {epoch}: loss = {total_loss:.4f}")
+
                 
 
 

@@ -10,5 +10,8 @@ class DummyModel(nn.Module):
             nn.Conv2d(16, 3, 3, padding=1)
         )
     
-    def forward(self, x):
+    def forward(self, x, t):
+        # normalize t
+        t = t.float().view(-1, 1, 1, 1) / 1000
+        x = x + t
         return self.net(x)
