@@ -14,9 +14,9 @@ from ..dataset.transform import (
     to_channel_first,
     to_tensor,
 )
-from ..diffusion.utils import reconstruct
-from ..model import DiffusionModel
-from ..viz.image import show_triplet
+from ..diffusion.sampling import sample
+from ..model import MiniUnet
+from ..viz.image import tensor_to_pil
 
 DATA_PATTERNS = ["*.jpg", "*.png", "*.jpeg"]
 
@@ -73,7 +73,7 @@ class BaseTask:
         logger.info("[BaseTask] Loading model...")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.model = DiffusionModel().to(self.device)
+        self.model = MiniUnet().to(self.device)
         
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
@@ -154,7 +154,7 @@ class BaseTask:
                 self.optimizer.zero_grad()
 
                 total_loss += loss.item()
-
+                """
                 # viz part
                 recon = reconstruct(noisy_images, noise_pred)
                 show_triplet(
@@ -162,8 +162,26 @@ class BaseTask:
                     noisy_images[0],
                     recon[0]
                 )
-            
+                """
             logger.info(f"Epoch {epoch}: loss = {total_loss:.4f}")
+    
+
+    def generate(self):
+        logger.info("[BaseTask] Generating sample...")
+        generated = sample(
+            model=self.model,
+            scheduler=self.scheduler,
+            device=self.device,
+            image_size=(3, 512, 512),
+            num_inference_steps=100
+        )
+
+        image = tensor_to_pil(generated)
+
+        output_path = "generated_sample.png"
+        image.save(output_path)
+
+        logger.info(f"[BaseTask] Generated image saved to {output_path}")
 
                 
 
@@ -175,3 +193,4 @@ class BaseTask:
         self.build_dataloader()
         self.load_model()
         self.train()
+        self.generate()
