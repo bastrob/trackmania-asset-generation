@@ -63,6 +63,11 @@ class BaseTask:
         if len(self.image_paths) == 0:
             raise ValueError(f"No images found in {self.train_data_dir}")
 
+        max_samples = self.config.get("max_train_samples")
+
+        if max_samples is not None:
+            self.image_paths = self.image_paths[:max_samples]
+
         logger.info(f"[BaseTask] Found {len(self.image_paths)} images")
         logger.debug(f"Sample: {self.image_paths[0]}")
 
