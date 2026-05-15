@@ -5,3 +5,4 @@ __pycache__/
 atlas_llm.egg-info
 data/
 polyhaven_textures/
+outputs/

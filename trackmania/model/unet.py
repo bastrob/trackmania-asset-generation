@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from ..embedding import TimeEmbedding
-from .block import ConvBlock
+from .block import ResidualBlock
 
 
 class MiniUnet(nn.Module):
@@ -16,21 +16,21 @@ class MiniUnet(nn.Module):
         )
 
         # encoder
-        self.enc1 = ConvBlock(3, num_channels, time_dim)
+        self.enc1 = ResidualBlock(3, num_channels, time_dim)
         self.pool1 = nn.MaxPool2d(2)
 
-        self.enc2 = ConvBlock(num_channels, num_channels * 2, time_dim)
+        self.enc2 = ResidualBlock(num_channels, num_channels * 2, time_dim)
         self.pool2 = nn.MaxPool2d(2)
 
         # bottleneck
-        self.bottleneck = ConvBlock(num_channels * 2, num_channels * 4, time_dim)
+        self.bottleneck = ResidualBlock(num_channels * 2, num_channels * 4, time_dim)
 
         # decoder
         self.up1 = nn.ConvTranspose2d(num_channels * 4, num_channels * 2, 2, stride=2)
-        self.dec1 = ConvBlock(num_channels * 4, num_channels * 2, time_dim)
+        self.dec1 = ResidualBlock(num_channels * 4, num_channels * 2, time_dim)
 
         self.up2 = nn.ConvTranspose2d(num_channels * 2, num_channels, 2, stride=2)
-        self.dec2 = ConvBlock(num_channels * 2, num_channels, time_dim)
+        self.dec2 = ResidualBlock(num_channels * 2, num_channels, time_dim)
 
         self.final = nn.Conv2d(num_channels, 3, 1)
     

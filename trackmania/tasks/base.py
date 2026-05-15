@@ -42,6 +42,15 @@ class BaseTask:
         self.optimizer: Optimizer
         self.criterion: nn.Module
 
+        self.output_dir = Path(
+            self.config.get("output_dir", "outputs")
+        )
+
+        self.checkpoint_dir = self.output_dir / "checkpoints"
+        self.sample_dir = self.output_dir / "samples"
+
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.sample_dir.mkdir(parents=True, exist_ok=True)
     
     def load_data(self):
         """
@@ -100,7 +109,7 @@ class BaseTask:
         if not self.image_paths:
             raise ValueError("Cannot build dataset: no images loaded")
         
-        self.dataset = SimpleImageDataset(image_paths=self.image_paths, transform=self.transform)
+        self.dataset = SimpleImageDataset(image_paths=self.image_paths, transform=self.transform, image_size=(256, 256))
         
         #logger.debug(f"Sample: {self.dataset[0]['image'].shape}")
 
@@ -126,6 +135,8 @@ class BaseTask:
 
         self.model.train()
         epochs = self.config.get("epochs", 5)
+        save_every = self.config.get("save_every_epoch", 5)
+        sample_every = self.config.get("sample_every_epoch", 5)
         for epoch in range(epochs):
             total_loss = 0
 
@@ -169,27 +180,54 @@ class BaseTask:
                 )
                 """
             logger.info(f"Epoch {epoch}: loss = {total_loss:.4f}")
+
+            if (epoch + 1) % save_every == 0:
+                self.save_checkpoint(epoch + 1)
+            
+            if (epoch + 1) % sample_every == 0:
+                self.generate_samples(epoch + 1)
     
 
     def generate(self):
-        logger.info("[BaseTask] Generating sample...")
         generated = sample(
             model=self.model,
             scheduler=self.scheduler,
             device=self.device,
-            image_size=(3, 512, 512),
-            num_inference_steps=100
+            image_size=(3, 256, 256),
+            num_inference_steps=1000
         )
 
         image = tensor_to_pil(generated)
 
-        output_path = "generated_sample.png"
-        image.save(output_path)
+        return image
+    
+    def generate_samples(self, epoch, num_samples=4):
+        logger.info("[Sampling] Generating samples...")
+        epoch_dir = self.sample_dir / f"epoch_{epoch}"
+        epoch_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"[BaseTask] Generated image saved to {output_path}")
+        for idx in range(num_samples):
+            image = self.generate()
 
-                
+            output_path = epoch_dir / f"sample_{idx}.png"
+            image.save(output_path)
 
+            logger.info(f"[BaseTask] Generated sample saved to {output_path}")
+
+
+    def save_checkpoint(self, epoch):
+        checkpoint_path = self.checkpoint_dir / f"epoch_{epoch}.pt"
+
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+            },
+            checkpoint_path,
+        )
+
+        logger.info(f"[BaseTask] Checkpoint saved: {checkpoint_path}")
 
     def run(self):
         logger.info("[BaseTask] running...")
@@ -198,4 +236,3 @@ class BaseTask:
         self.build_dataloader()
         self.load_model()
         self.train()
-        self.generate()
