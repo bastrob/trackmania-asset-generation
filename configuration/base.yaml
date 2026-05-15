@@ -1,4 +1,4 @@
-train_data_dir: data/base2
+train_data_dir: data/base3
 max_train_samples: 5
 batch_size: 4
 epochs: 150

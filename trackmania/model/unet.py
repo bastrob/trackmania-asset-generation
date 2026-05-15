@@ -22,15 +22,21 @@ class MiniUnet(nn.Module):
         self.enc2 = ResidualBlock(num_channels, num_channels * 2, time_dim)
         self.pool2 = nn.MaxPool2d(2)
 
+        self.enc3 = ResidualBlock(num_channels * 2, num_channels * 4, time_dim)
+        self.pool3 = nn.MaxPool2d(2)
+
         # bottleneck
-        self.bottleneck = ResidualBlock(num_channels * 2, num_channels * 4, time_dim)
+        self.bottleneck = ResidualBlock(num_channels * 4, num_channels * 8, time_dim)
 
         # decoder
-        self.up1 = nn.ConvTranspose2d(num_channels * 4, num_channels * 2, 2, stride=2)
-        self.dec1 = ResidualBlock(num_channels * 4, num_channels * 2, time_dim)
+        self.up1 = nn.ConvTranspose2d(num_channels * 8, num_channels * 4, 2, stride=2)
+        self.dec1 = ResidualBlock(num_channels * 8, num_channels * 4, time_dim)
 
-        self.up2 = nn.ConvTranspose2d(num_channels * 2, num_channels, 2, stride=2)
-        self.dec2 = ResidualBlock(num_channels * 2, num_channels, time_dim)
+        self.up2 = nn.ConvTranspose2d(num_channels * 4, num_channels * 2, 2, stride=2)
+        self.dec2 = ResidualBlock(num_channels * 4, num_channels * 2, time_dim)
+
+        self.up3 = nn.ConvTranspose2d(num_channels * 2, num_channels, 2, stride=2)
+        self.dec3 = ResidualBlock(num_channels * 2, num_channels, time_dim)
 
         self.final = nn.Conv2d(num_channels, 3, 1)
     
@@ -42,22 +48,31 @@ class MiniUnet(nn.Module):
 
         x2 = self.enc2(self.pool1(x1), t_emb)
 
+        x3 = self.enc3(self.pool2(x2), t_emb)
+
         # bottleneck
-        x3 = self.bottleneck(self.pool2(x2), t_emb)
+        bottleneck = self.bottleneck(self.pool3(x3), t_emb)
 
         # decoder
-        x = self.up1(x3)
+        x = self.up1(bottleneck)
 
         # skip connection
-        x = torch.cat([x, x2], dim=1)
+        x = torch.cat([x, x3], dim=1)
         
         x = self.dec1(x, t_emb)
 
         x = self.up2(x)
 
         # skip connection
-        x = torch.cat([x, x1], dim=1)
+        x = torch.cat([x, x2], dim=1)
         
         x = self.dec2(x, t_emb)
+
+        x = self.up3(x)
+
+        # skip connection
+        x = torch.cat([x, x1], dim=1)
+
+        x = self.dec3(x, t_emb)
 
         return self.final(x)

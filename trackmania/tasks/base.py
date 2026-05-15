@@ -15,8 +15,9 @@ from ..dataset.transform import (
     to_tensor,
 )
 from ..diffusion.sampling import sample
-from ..model import MiniUnet
-from ..viz.image import tensor_to_pil
+from ..diffusion.utils import reconstruct
+from ..model import EMA, MiniUnet
+from ..viz.image import show_triplet, tensor_to_pil
 
 DATA_PATTERNS = ["*.jpg", "*.png", "*.jpeg"]
 
@@ -39,6 +40,7 @@ class BaseTask:
 
         self.device: torch.device
         self.model: nn.Module
+        self.ema : EMA
         self.optimizer: Optimizer
         self.criterion: nn.Module
 
@@ -88,6 +90,7 @@ class BaseTask:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.model = MiniUnet().to(self.device)
+        self.ema = EMA(self.model, decay=0.95).to(self.device)
         
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
@@ -167,18 +170,23 @@ class BaseTask:
                 # backward
                 loss.backward()
                 self.optimizer.step()
+
+                # ema update
+                self.ema.update(self.model)
+
                 self.optimizer.zero_grad()
 
                 total_loss += loss.item()
-                """
+                
                 # viz part
-                recon = reconstruct(noisy_images, noise_pred)
-                show_triplet(
-                    images[0],
-                    noisy_images[0],
-                    recon[0]
-                )
-                """
+                if (epoch + 1) % 50 == 0:
+                    recon = reconstruct(noisy_images, noise_pred)
+                    show_triplet(
+                        images[0],
+                        noisy_images[0],
+                        recon[0]
+                    )
+                
             logger.info(f"Epoch {epoch}: loss = {total_loss:.4f}")
 
             if (epoch + 1) % save_every == 0:
@@ -186,11 +194,10 @@ class BaseTask:
             
             if (epoch + 1) % sample_every == 0:
                 self.generate_samples(epoch + 1)
-    
 
     def generate(self):
         generated = sample(
-            model=self.model,
+            model=self.ema.model,
             scheduler=self.scheduler,
             device=self.device,
             image_size=(3, 256, 256),
